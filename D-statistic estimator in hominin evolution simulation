@@ -1,3 +1,6 @@
+//Simulating hominin evolution and estimating the D-statistic using two methods (A and B)
+//Context and explanation are available in the project write-up, viewable here: https://drive.google.com/file/d/1LTMatJFPK0S1aAlFHSdNG91D8WjJ49n3/view
+
 //setting up the simulation
 initialize() {
 defineConstant("L", 1e7); //genome size L
