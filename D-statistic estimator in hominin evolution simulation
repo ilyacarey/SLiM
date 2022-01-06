@@ -1,0 +1,85 @@
+//setting up the simulation
+initialize() {
+defineConstant("L", 1e7); //genome size L
+defineConstant("populationsize",3000); //population size
+defineConstant("f", sample(0:100/1000,1)); //admixture rate
+initializeSLiMOptions(nucleotideBased=T); //nucleotide-based model
+initializeAncestralNucleotides(randomNucleotides(L)); //generating genome sequence
+initializeMutationTypeNuc("m1", 0.5, "f", 0.0); //creating neutral mutation
+//setting up mutation rate with empirical substitution matrix
+data=readFile("path to empirical substitution matrix");
+mut=9*asFloat(matrix(data, ncol=4));
+initializeGenomicElementType("g1", m1, 1.0, mutationMatrix=mut);
+m1.convertToSubstitution = F; //fixed mutations do not become substitutions
+initializeGenomicElement(g1, 0, L-1); //creating chromosome
+initializeRecombinationRate(1e-7); //setting recombination rate
+initializeSex("A"); //sex-based model
+}
+//returns frequencies of nucleotides
+function (float)nucleotide_frequencies(object genomes){
+freq=c();
+for (i in multiple_muts){
+freq=rbind(freq, nucleotideFrequencies(sapply(genomes, "applyValue.nucleotides(i,i);")));}
+return(freq);}
+//returns frequencies of derived mutations
+function (float)derived_frequencies(float frequencies){
+return matrix(sapply(0:(sum(backmutations)-1), "1-frequencies[applyValue,ancestral[backmutations][applyValue]];"));}
+//creating populations
+1 {sim.addSubpop("p3", populationsize);} //ancestral population
+40000 {sim.addSubpopSplit("p2", populationsize, p3);} //splitting Neanderthals (p3) from humans
+49000 {sim.addSubpopSplit("p1", populationsize, p2);} //splitting non-Africans (p2) from Africans (p1)
+49500 {p2.setMigrationRates(p3, f);} //admixture event
+49501 {p2.setMigrationRates(p3, 0);}
+50000 late() {//method B
+//identifying sites with one mutation
+one_mutation=sapply(sim.mutations.position,"return sum(sim.mutations.position==applyValue)==1;");
+//positions of sites with multiple mutations
+defineGlobal("multiple_muts", unique(sim.mutations.position[!one_mutation]));
+if (length(multiple_muts)!=0){
+//frequencies of nucleotides at sites with more than one mutation
+p1m=nucleotide_frequencies(p1.genomes);
+p2m=nucleotide_frequencies(p2.genomes);
+p3m=nucleotide_frequencies(p3.genomes);
+//global nucleotide frequencies
+freq=p1m+p2m+p3m;
+//identifying biallelic sites
+defineGlobal("biallelic",sapply(0:(length(multiple_muts)-1),
+"if (sum(freq[applyValue,]==0)==2){return applyValue;} else NULL;"));
+if (!isNULL(biallelic)){
+//finding ancestral nucleotides
+defineGlobal("ancestral",
+sim.chromosome.ancestralNucleotides(format="integer")[multiple_muts[biallelic]]);
+//identifying backmutations
+defineGlobal("backmutations", sapply(biallelic,
+"return(freq[applyValue,ancestral[match(applyValue,biallelic)]]>0);"));
+if (sum(backmutations)!=0){
+//calculating derived allele frequencies for all subpops
+p1d=derived_frequencies(p1m[biallelic,][backmutations,]);
+p2d=derived_frequencies(p2m[biallelic,][backmutations,]);
+p3d=derived_frequencies(p3m[biallelic,][backmutations,]);
+//pool derived nucleotide frequencies
+p1m=rbind(matrix(sim.mutationFrequencies(p1)[one_mutation]),p1d );
+p2m=rbind(matrix(sim.mutationFrequencies(p2)[one_mutation]),p2d );
+p3m=rbind(matrix(sim.mutationFrequencies(p3)[one_mutation]),p3d );
+//ABBA and BABA
+ABBA=sum((1-p1m)*p2m*p3m);
+BABA=sum(p1m*(1-p2m)*p3m);
+dvalue=(ABBA-BABA)/(ABBA+BABA);
+print(paste("Overall values:","ABBA =", ABBA, ", BABA =",BABA,", Dvalue =",dvalue));
+writeFile("path/B_dvalues.txt", paste(dvalue), append=T);
+writeFile("path/B_ABBA.txt", paste(ABBA), append=T);
+writeFile("path/B_BABA.txt", paste(BABA), append=T);
+}}}
+//method A
+p1m=sim.mutationFrequencies(p1);
+p2m=sim.mutationFrequencies(p2);
+p3m=sim.mutationFrequencies(p3);
+ABBA=sum((1-p1m)*p2m*p3m);
+BABA=sum(p1m*(1-p2m)*p3m);
+dvalue=(ABBA-BABA)/(ABBA+BABA);
+print(paste("Overall values:","ABBA =", ABBA, ", BABA =",BABA,", Dvalue =",dvalue));
+writeFile("path/A_dvalues.txt", paste(dvalue), append=T);
+writeFile("path/A_ABBA.txt", paste(ABBA), append=T);
+writeFile("path/A_BABA.txt", paste(BABA), append=T);
+writeFile("path/f.txt", paste(f), append=T);
+}
