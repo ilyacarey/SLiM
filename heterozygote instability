@@ -1,0 +1,6 @@
+//this block is executed every time a mutation arises; “halfwindow” is 500bp window (you need to set this global variable)
+//add this block to an existing simulation to incorporate it
+mutation(){
+if (calcPairHeterozygosity(parent.genome1, parent.genome2,mut.position-halfwindow, mut.position+halfwindow)>0)
+{return T;} //mutation always accepted since heterozygous site is within 1kbp
+else {return 0.5>runif(1);} //mutation accepted with 50% chance since there are no heterozygous sites within 1kbp
